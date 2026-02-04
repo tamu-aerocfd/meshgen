@@ -2,8 +2,7 @@
 
 This repository contains a Python script that reads a JSON mesh configuration,
 performs basic coordinate math for a multi-block backward-facing step, and
-writes an ASCII UGRID file containing boundary quads and hexahedral volume
-elements.
+writes a simple UGRID-like text file containing nodes and hex connectivity.
 
 The mesh is constructed from three structured blocks:
 
@@ -49,7 +48,6 @@ Example:
 
 ## Output format
 
-The output is an ASCII UGRID file with the standard header counts followed by
-node coordinates, boundary quadrilateral faces, boundary surface IDs, and
-hexahedral volume elements (with 1-based node indexing). This is intended as a
+The output is a simple text representation of a UGRID-like file with node
+coordinates followed by hex cell connectivity. This is intended as a
 boilerplate starting point for integrating with real UGRID/NetCDF workflows.
