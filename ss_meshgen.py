@@ -72,9 +72,11 @@ def load_config(path: Path) -> MeshConfig:
         n_theta=int(data["n_theta"]),
     )
     if cfg.ny_clearance % 2 != 0:
-        raise ValueError("ny_clearance must be even for symmetric reflected spacing.")
-    if cfg.nx_landing % 2 != 0:
-        raise ValueError("nx_landing must be even for symmetric outlet landing spacing.")
+        raise ValueError("ny_clearance must be even for reflected spacing.")
+    if cfg.ny_landing % 2 != 0:
+        raise ValueError("ny_landing must be even for reflected spacing.")
+    if cfg.nx_seal % 2 != 0:
+        raise ValueError("nx_seal must be even for symmetric two-sided seal spacing.")
     if cfg.r_stator <= cfg.shaft_radius + cfg.y_clearance:
         raise ValueError("r_stator must be greater than shaft_radius + y_clearance.")
     if cfg.n_theta < 3:
@@ -128,27 +130,32 @@ def cumulative_coords(start: float, spacing: List[float]) -> List[float]:
     return coords
 
 
-def build_shrinking_spacing_toward_right(d0_right: float, length: float, count: int, label: str) -> List[float]:
+def build_shrinking_spacing_toward_right(
+    d0_right: float, length: float, count: int, label: str
+) -> List[float]:
     grow_away_from_right = build_spacing(d0_right, length, count, label)
     return list(reversed(grow_away_from_right))
 
 
-def build_symmetric_spacing_ends(d0_end: float, length: float, count: int, label: str) -> List[float]:
+def build_symmetric_spacing_ends(
+    d0_end: float, length: float, count: int, label: str
+) -> List[float]:
+    if count % 2 != 0:
+        raise ValueError(f"{label} count must be even for symmetric two-sided spacing.")
     half = count // 2
     left_half = build_spacing(d0_end, length / 2.0, half, label)
     return left_half + list(reversed(left_half))
 
 
-def build_reflected_clearance_y(shaft_radius: float, y_clearance: float, ny_clearance: int, y1: float) -> List[float]:
-    half = ny_clearance // 2
-    lower_half = build_spacing(y1, y_clearance / 2.0, half, "clearance y (reflected)")
-    spacing = lower_half + list(reversed(lower_half))
-    return cumulative_coords(shaft_radius, spacing)
-
-
-def build_outer_y(shaft_radius: float, y_clearance: float, r_stator: float, ny_landing: int, y1: float) -> List[float]:
-    spacing = build_spacing(y1, r_stator - (shaft_radius + y_clearance), ny_landing, "landing y")
-    return cumulative_coords(shaft_radius + y_clearance, spacing)
+def build_reflected_radial_coords(
+    r_min: float, r_max: float, count: int, y1: float, label: str
+) -> List[float]:
+    if count % 2 != 0:
+        raise ValueError(f"{label} count must be even for reflected spacing.")
+    half = count // 2
+    half_spacing = build_spacing(y1, (r_max - r_min) / 2.0, half, label)
+    spacing = half_spacing + list(reversed(half_spacing))
+    return cumulative_coords(r_min, spacing)
 
 
 def add_block_periodic_theta(
@@ -250,24 +257,33 @@ def extract_boundary_quads(
 
 def build_mesh(config: MeshConfig) -> UGrid:
     r_shaft = config.shaft_radius
+    r_clear_top = config.shaft_radius + config.y_clearance
 
+    # Inlet landing: one-sided shrink toward x1 at right (near seal entrance)
     x_inlet_spacing = build_shrinking_spacing_toward_right(
         config.x1, config.x_landing, config.nx_landing, "inlet landing x (shrink to x1)"
     )
     x_inlet = cumulative_coords(0.0, x_inlet_spacing)
 
-    x_seal_spacing = build_shrinking_spacing_toward_right(
-        config.x1, config.x_seal, config.nx_seal, "seal x (shrink to x1)"
+    # Seal: two-sided shrink to x1 at both ends, meeting at center
+    x_seal_spacing = build_symmetric_spacing_ends(
+        config.x1, config.x_seal, config.nx_seal, "seal x (symmetric ends)"
     )
     x_seal = cumulative_coords(config.x_landing, x_seal_spacing)
 
-    x_outlet_spacing = build_symmetric_spacing_ends(
-        config.x1, config.x_landing, config.nx_landing, "outlet landing x (symmetric ends)"
+    # Outlet landing: one-sided growth from x1 at left (seal exit) to outlet
+    x_outlet_spacing = build_spacing(
+        config.x1, config.x_landing, config.nx_landing, "outlet landing x (grow from x1)"
     )
     x_outlet = cumulative_coords(config.x_landing + config.x_seal, x_outlet_spacing)
 
-    y_clear = build_reflected_clearance_y(r_shaft, config.y_clearance, config.ny_clearance, config.y1)
-    y_outer = build_outer_y(r_shaft, config.y_clearance, config.r_stator, config.ny_landing, config.y1)
+    # Clearance and outer landing both use reflected spacing with y1 at both sides.
+    y_clear = build_reflected_radial_coords(
+        r_shaft, r_clear_top, config.ny_clearance, config.y1, "clearance y (reflected)"
+    )
+    y_outer = build_reflected_radial_coords(
+        r_clear_top, config.r_stator, config.ny_landing, config.y1, "outer landing y (reflected)"
+    )
 
     nodes: List[Tuple[float, float, float]] = []
     node_index: Dict[Tuple[float, float, float], int] = {}

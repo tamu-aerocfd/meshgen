@@ -39,7 +39,7 @@ SS input parameters:
 - `y_clearance`
 - `ny_clearance` (even)
 - `r_stator`
-- `ny_landing`
+- `ny_landing` (even)
 - `y1`
 - `n_theta`
 
@@ -51,9 +51,10 @@ SS block layout:
 - Outlet outer landing block
 
 SS spacing behavior:
-- Inlet/seal x-spacing shrinks toward `x1` at the right side.
-- Outlet x-spacing is symmetric from both ends and meets in the middle.
-- Clearance y-spacing is reflected so `y1` is used at both top and bottom.
+- Inlet x-spacing shrinks toward `x1` at the right side.
+- Seal x-spacing is symmetric and shrinks to `x1` at both ends.
+- Outlet x-spacing starts at `x1` on the left and grows to the outlet.
+- Clearance and outer-landing radial spacing are reflected so `y1` is used at both sides.
 - Blocks are rotated in theta with periodic connectivity in k (no theta/z BC).
 
 SS BC IDs:
