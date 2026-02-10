@@ -1,60 +1,48 @@
-# Meshgen UGRID Boilerplate
+# Meshgen UGRID Scripts
 
-This repository contains a Python script that reads a JSON mesh configuration,
-performs basic coordinate math for a multi-block backward-facing step, and
-writes an ASCII UGRID file containing boundary quads and hexahedral volume
-elements.
+This repository now provides two mesh generators that write ASCII UGRID files and
+companion `.mapbc` files.
 
-The mesh is constructed from three structured blocks:
+## 1) Backward-facing step (BFS)
 
-- Inlet block (upper channel, upstream of the step)
-- Upper block (upper channel, downstream of the step)
-- Step block (lower channel, downstream of the step)
-
-## Usage
+Use `BFS_meshgen.py` with the existing BFS JSON input format.
 
 ```bash
-python3 meshgen.py sample_input.json output.ugrid
+python3 BFS_meshgen.py sample_input.json bfs_output.ugrid
 ```
 
-## Input format
+## 2) Flat plate (FP)
 
-The input JSON file must include:
+Use `FP_meshgen.py` with parameters:
 
-- `landing_length`: length of the inlet block upstream of the step
-- `nx_landing`: number of cells in the inlet block (x direction)
-- `dx_corner`: starting spacing at the step corner (x/y directions)
-- `step_height`: height of the step (lower channel height below the corner, growth from bottom wall toward the step)
-- `upper_height`: height of the upper channel above the step corner (growth from top wall toward the step)
-- `ny_step`: number of cells across the step height
-- `delta_z`: uniform spacing in the z direction
-- `nz`: number of cells in the z direction
-- `step_length`: length of the downstream blocks
-- `nx_step`: number of cells in the downstream blocks (x direction, must be even)
+- `x_landing`
+- `nx_landing`
+- `x1`
+- `x_plate`
+- `nx_plate`
+- `ny`
+- `y1`
+- `ly`
+- `nz`
+- `lz`
 
-Example:
-
-```json
-{
-  "landing_length": 2.0,
-  "nx_landing": 6,
-  "dx_corner": 0.05,
-  "step_height": 1.0,
-  "upper_height": 1.0,
-  "ny_step": 10,
-  "delta_z": 0.1,
-  "nz": 5,
-  "step_length": 4.0,
-  "nx_step": 12
-}
+```bash
+python3 FP_meshgen.py fp_sample_input.json fp_output.ugrid
 ```
 
-## Output format
+### Flat-plate spacing behavior
 
-The output is an ASCII UGRID file with the standard header counts followed by
-node coordinates, boundary quadrilateral faces, boundary surface IDs, and
-hexahedral volume elements (with 1-based node indexing). A companion
-`.mapbc` file is written alongside the UGRID file, mapping each boundary quad
-to a boundary condition ID: inlet (1), outlet (2), bottom wall (3), top far
-field (4), and symmetry sides in z (5). This is intended as a boilerplate
-starting point for integrating with real UGRID/NetCDF workflows.
+- Landing block spans `[-x_landing, 0]` and uses `x1` at `x=0`, growing toward
+  `-x_landing`.
+- Plate block spans `[0, x_plate]` and uses `x1` at `x=0`, growing toward
+  `x_plate`.
+- Both blocks share the same y-grid, starting at `y1` and growing upward to `ly`.
+
+### Flat-plate BC IDs
+
+- `1`: inlet (`x = min_x`)
+- `2`: outlet (`x = max_x`)
+- `3`: inviscid wall on landing (`y = 0`, `x < 0`)
+- `4`: far field (`y = max_y`)
+- `5`: symmetry sides (`z = min_z` and `z = max_z`)
+- `6`: viscous wall on plate (`y = 0`, `x >= 0`)
