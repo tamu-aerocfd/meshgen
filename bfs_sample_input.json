@@ -1,7 +1,8 @@
 {
   "landing_length": 2.0,
   "nx_landing": 6,
-  "dx_corner": 0.05,
+  "x1": 0.05,
+  "y1": 0.05,
   "step_height": 1.0,
   "upper_height": 1.0,
   "ny_step": 10,

@@ -19,7 +19,8 @@ from typing import Dict, Iterable, List, Tuple
 class MeshConfig:
     landing_length: float
     nx_landing: int
-    dx_corner: float
+    x1: float
+    y1: float
     step_height: float
     upper_height: float
     ny_step: int
@@ -44,7 +45,8 @@ def load_config(path: Path) -> MeshConfig:
     required = {
         "landing_length",
         "nx_landing",
-        "dx_corner",
+        "x1",
+        "y1",
         "step_height",
         "upper_height",
         "ny_step",
@@ -53,15 +55,22 @@ def load_config(path: Path) -> MeshConfig:
         "step_length",
         "nx_step",
     }
+    # Legacy inputs used `dx_corner` as a shared x/y first-cell value.
+    if "x1" not in data and "dx_corner" in data:
+        data["x1"] = data["dx_corner"]
+    if "y1" not in data and "dx_corner" in data:
+        data["y1"] = data["dx_corner"]
+
     missing = required.difference(data)
     if missing:
         missing_str = ", ".join(sorted(missing))
         raise ValueError(f"Missing required keys: {missing_str}")
 
-    return MeshConfig(
+    config = MeshConfig(
         landing_length=float(data["landing_length"]),
         nx_landing=int(data["nx_landing"]),
-        dx_corner=float(data["dx_corner"]),
+        x1=float(data["x1"]),
+        y1=float(data["y1"]),
         step_height=float(data["step_height"]),
         upper_height=float(data["upper_height"]),
         ny_step=int(data["ny_step"]),
@@ -70,6 +79,9 @@ def load_config(path: Path) -> MeshConfig:
         step_length=float(data["step_length"]),
         nx_step=int(data["nx_step"]),
     )
+    if config.ny_step % 2 != 0:
+        raise ValueError("ny_step must be even so step-block y spacing can meet at the center.")
+    return config
 
 
 def geometric_series_length(dx0: float, ratio: float, count: int) -> float:
@@ -148,13 +160,13 @@ def wall_to_center_coords(
 
 
 def build_blocks(config: MeshConfig) -> UGrid:
-    x_step_spacing = symmetric_spacing(
-        config.dx_corner, config.step_length, config.nx_step, "step x (symmetric)"
+    x_step_spacing = build_spacing(
+        config.x1, config.step_length, config.nx_step, "step x (grow to outlet)"
     )
     x_step_coords = cumulative_coords(0.0, x_step_spacing)
 
     x_landing_spacing = build_spacing(
-        config.dx_corner, config.landing_length, config.nx_landing, "landing x"
+        config.x1, config.landing_length, config.nx_landing, "landing x"
     )
     x_landing_coords = [0.0]
     for delta in x_landing_spacing:
@@ -164,17 +176,14 @@ def build_blocks(config: MeshConfig) -> UGrid:
     y_upper = wall_to_center_coords(
         config.upper_height,
         config.ny_step,
-        config.dx_corner,
+        config.y1,
         "upper y (wall to center)",
         wall_at_positive=True,
     )
-    y_lower = wall_to_center_coords(
-        config.step_height,
-        config.ny_step,
-        config.dx_corner,
-        "lower y (wall to center)",
-        wall_at_positive=False,
+    y_step_spacing = symmetric_spacing(
+        config.y1, config.step_height, config.ny_step, "step y (symmetric walls)"
     )
+    y_lower = cumulative_coords(-config.step_height, y_step_spacing)
 
     z_spacing = [config.delta_z for _ in range(config.nz)]
     z_coords = cumulative_coords(0.0, z_spacing)
